@@ -1,4 +1,8 @@
 DHSMasterFile <- "DHSMaster.csv"
+translationTable <- "TranslationTables/DHS_VariableTranslation_v312.csv"
+outputPath <- "output"
+dataPath <- "data"
+
 
 ## List of special surveys need special unmet need calculation
 ## K: Term "special" is ambiguous, how are we defining a "special" survey?
@@ -22,7 +26,16 @@ ordinarySurveyColumns <- c("v000", "v001", "v002", "v003", "v005", "V007", "v008
   "awfactt", "awfactu", "awfactr", "awfacte", "awfactw", "method", "methodSpecific", 
   "weights")
 
-translationTable <- "TranslationTables/DHS_VariableTranslation_v312.csv"
-outputPath <- "output"
-dataPath <- "data"
+#Calculate Unmet Estimates
+## v213: Currently Pregnant
+## v225: Wantedness of Current Pregnancy
+## v312: Current CP Method
+## m10_1: Wantedness of Last Child
+## m6_1: PPA Duration
+## v605: Wantedness of Future Child
+## b3_01: Date of last Birth
+## v008: Date of Interview
+
+requiredUnmetVar <- c("v213","v225","v312","m10.1","m6.1","v605","b3.01","v008")
+
 

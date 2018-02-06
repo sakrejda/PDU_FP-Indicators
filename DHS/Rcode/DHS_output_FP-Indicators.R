@@ -58,51 +58,10 @@ for(SurveyID in working.list) {
 # from here???  Did I delete loading it?
   ir.data <- ir.data %>% dplyr::select(dplyr::matches(keepColumnRegex))
   
-  #Restrict Sexually Active Sample
-  # ir.data$sexact <- NA
-  
-  #1 month
-  # if(SurveyID=="bf21"){
-  #   ir.data$sexact[which(ir.data$v527>=0 & ir.data$v527<300)]<-1
-  #   ir.data$sexact[which(ir.data$v527 > 300)] <- 2
-  # }else{
-  #   ir.data$sexact[which(ir.data$v528>=0 & ir.data$v528<=30)] <- 1
-  #   if(SurveyID %in% specialSurveys){
-  #     ir.data$sexact[which(is.na(ir.data$sexact) & ir.data$v528==95)] <- 1
-  #   }else{
-  #     ir.data$sexact[which(ir.data$v528 > 30)] <- 2
-  #     ir.data$sexact[which(ir.data$v536 == 0)] <- 3
-  #   }
-  # }
-  
-  # #3 months
-  # ir.data$sexact[which((ir.data$v527>=0 & ir.data$v527<=190) |
-  #                        (ir.data$v527>=200 & ir.data$v527<=212)|
-  #                        (ir.data$v527>=300 & ir.data$v527<=303))] <- 1
-  # 
-  #  
-  # if(all(ir.data$sexact==0) | all(is.na(ir.data$sexact))){
-  #   next()
-  # }else{
-  #   ir.data <- subset(ir.data,subset=ir.data$sexact==1)
-  # }
-  
-  
-  #Calculate Unmet Estimates
-  ## v213: Currently Pregnant
-  ## v225: Wantedness of Current Pregnancy
-  ## v312: Current CP Method
-  ## m10_1: Wantedness of Last Child
-  ## m6_1: PPA Duration
-  ## v605: Wantedness of Future Child
-  ## b3_01: Date of last Birth
-  ## v008: Date of Interview
-  
-  UnmetVar.list <- c("v213","v225","v312","m10.1","m6.1","v605","b3.01","v008")
-  
-  if(all(toupper(UnmetVar.list) %in% toupper(names(ir.data)))){
+ # FIXME: Unmet() function should check for these and dump NA's if not available. 
+  if(requiredUnmetVar %in% names(ir.data)) {
     ir.data <- Unmet(ir.data)
-  }else{
+  } else {
     ir.data$unmettot <- NA
     ir.data$unmet <- NA
     ir.data$sexact <-NA
@@ -117,7 +76,10 @@ for(SurveyID in working.list) {
   tMETH <- CP_METH("Both")
   
   tTYPE$totalDemand <- rowSums(tTYPE[,c("cpAny","Unmet")],na.rm=T)
+ 
   
+  # FIXME: RESOLVE: Does this Publish/Exclude stuff matter to us?
+ 
   #WMCUMA = Indicator of whether sample size of unmarried for 15-49 < 10
   ## <10 = Exclude
   ## >=10 = Publish
