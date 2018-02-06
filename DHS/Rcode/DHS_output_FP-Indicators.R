@@ -441,7 +441,7 @@ for(i in 1:length(working.list)){
   }
 
   #Categorize Marital Status, Age 
-  ir.data <- MapVal(ir.data)
+  ir.data <- calculateNewVariables(ir.data)
   
   #Calculate CP Estimates
   tTYPE <- CP_OUTPUT("Both")

@@ -9,81 +9,79 @@
 # [http://www.un.org/en/development/desa/population/theme/family-planning/index.shtml]
 ## DHS micro data sets need to be downloaded from the DHS program website [https://dhsprogram.com/]
 
-library(plyr) 
+#' Compute marital status categories
+#'
+#' Binary marital status categories are either:
+#' a) Married / in-union; or
+#' b) Unmarried / not-in-union
+#' These are placed in the 'mstatusBinary' variable.
+#' 
+#' This function also defines a second 'mstatus' variable
+#' that is:
+#' a) 0 = never married
+#' b) 2 = ...
+#' c) 9 = ...
+#' d) NA = NA _or_ married
+#' 
+#' @param ir.data the data frame we are adding the variables to.
+#' @return ir.data with additional variables.
+defineMaritalCategories <- function(ir.data){
+  ir.data$mstatus <- ifelse(ir.data$v502 == 1, NA, ir.data$v502)
 
-# Compute marital status categories
-Define <- function(ir.data){
-  ir.data$mstatus <- NA
-  #Drop Currently Married 
-  ##(mstatusBinary contains Married and Unmarried)
-  ##mstatus only contains subcategories of Unmarried
-  ir.data$mstatus <- mapvalues(ir.data$v502, from =c(NA,0,1,2,9), to =c(NA,0,NA,2,9))
-  
-  #Binary Variable for marital status of either "Married/in-union' or 'Unmarried/Not-in-union
   ir.data$mstatusBinary <- NA
-  ir.data$mstatusBinary[which(ir.data$v502==1)] <- 1
-  ir.data$mstatusBinary[which(ir.data$v502==9)] <- 9
-  
-  #Remove Unmarried categories if formerly-married exists but not never-in-unin
-  ir.data$mstatusBinary[which(ir.data$v502!=1 & ir.data$v502!=9)] <-2
+  ir.data$mstatusBinary[ir.data$v502 == 1] <- 1
+  ir.data$mstatusBinary[ir.data$v502 == 9] <- 9
+  ir.data$mstatusBinary[ir.data$v502 != 1 & ir.data$v502 != 9] <-2   #Remove Unmarried categories if formerly-married exists but not never-in-unin
 
-  ir.data$agegroup <- ir.data$v013
-  
   return(ir.data)
 }
 
-# Compute variable labels
-MapVal <- function(ir.data){
-  ir.data <- Define(ir.data)
-  #Contraceptive Use
-  ir.data$method <- factor(ir.data$method, levels = c(0,1,2,9),
-                           labels = c("Not_using_any_method", "Using_modern_method", "Using_traditional_method", "Unknown"))
-  
-  #Unmet Need
-  ir.data$unmetneed <- ir.data$unmet
-  
-  ir.data$unmetneed <- factor(ir.data$unmetneed, levels = c(1,2,3,4,7,9,97,98,99), 
-                              labels = c("unmet_need_for_spacing", "unmet_need_for_limiting", "using_for_spacing",
-                                         "using_for_limiting", "no_unmet_need", "infecund_or_menopausal", "not_sexually_active",
-                                         "unmarried_EM_sample_or_no_data", "unmet need missing"))
-  
-  ir.data$unmettot <- factor(ir.data$unmettot,
-                             levels = c(0,1),
-                             labels = c("No_unmet_need", "Unmet_need" ))
-  
-  ir.data$specific_unmet <- factor(ir.data$specific_unmet,
-                                   levels = c(0,1,2),
-                                   labels = c("No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting"))
-  
-  #Sexual Activtiy
-  ir.data$sexact <- factor(ir.data$sexact, levels = c(1,2,3),
-                           labels = c("Sexually_active", "Sexually_inactive", "Never_had_sex"))
-  
-  #Marital Status
-  ir.data$mstatus <- factor(ir.data$mstatus, levels = c(0,2,9),
-                            labels = c("Never married", "Formerly married", "Marital Status, Missing"))
-  
-  ir.data$mstatusBinary <- factor(ir.data$mstatusBinary, levels = c(1,2,9),
-                                  labels = c("Married/In-union", "Unmarried/Not-in-union", "Marital Status, Missing"))
-  
-  #Age
-  ir.data$agegroup <- factor(ir.data$agegroup, levels = c(1,2,3,4,5,6,7), 
-                             labels = c("[15-19]", "[20-24]", "[25-29]", "[30-34]", "[35-39]", "[40-44]","[45-49]"))
-  return (ir.data)
+#' This function also defines an 'agegroup' variable that is
+#' just v013 used directly
+#' 
+#' @param ir.data the data frame we are adding the variables to.
+#' @return ir.data with additional variables.
+addAgeGroup <- function(ir.data) ir.data %>% dplyr::mutate(agegroup = ir.data$v013)
+
+#' Sources a separate file to create a list of labels.  Then applies
+#' the list to convert implicit factors into explicit R factor type
+#' with complete labels.
+#' @param data a data frame to define the factors in.
+#' @param label_file a regular R file that creates a list named 'label_list'
+#'        This list must have named elements, one per variable to transform
+#'        into a factor.  Each element is a list with two elements: 1) a
+#'        vector of levels for the factor; and 2) a character vector of 
+#'        corresponding labels.  Check DHS_Labels.R for an example.
+labelVariables <- function(data, label_file = 'DHS_Labels.R'){
+  data <- defineMaritalCategories(data) %>% addAgeGroup()
+  e <- new.env()
+  soure(label_file, local=e)
+  label_these <- names(e$label_list)
+
+  for (variable in label_these ) {
+    data[[variable]] <- factor(x=data[[variable]], 
+      levels = e$label_list[[variable]][['levels']],
+      labels = e$label_list[[variable]][['labels']])
+  }
+  return (data)
 }
+
+#' Calculate variables related to unmet need, marital status, sexual activity and 
+#' age group
+#' 
+#' @param ir.data data frame to add the variables to.
+calculateNewVariables <- function(ir.data) ir.data %>% 
+  defineMaritalCategories() %>% addAgeGroup() %>% labelVariables()
+ 
 
 # Compute contraceptive method categories - for calculation of standard error
 Categorization_SE <- function(ir.data){
-  ir.data<-Define(ir.data)
+  ir.data <- defineMaritalCategories(ir.data)
 
   ir.data$anymethod <- ifelse(ir.data$method %in% c(1,2), 1, 0) 
-  
   ir.data$tradmethod <- ifelse(ir.data$method == 2, 1, 0)
-  
   ir.data$modernmethod <- ifelse(ir.data$method == 1, 1, 0)
-  
   ir.data$unmettot <- ir.data$unmettot
-  
   ir.data$maritalstatus <- ifelse(ir.data$mstatusBinary == 1, 1, 0)
   
   return (ir.data)
