@@ -1,393 +1,62 @@
-## R scripts to harmonise family planning variable and estimate family planning indicators by marital status and age from DHS micro-data files
-# 1. 'DHS_Translate.R' Translates relevant variables across surveys and stores harmonised variable names and codes as R data sets. Based on IPUMS-DHS (https://www.idhsdata.org/idhs/).
-# 2. 'DHS_Categorization.R' Computes marital status and contraceptive use variables
-# 3. 'DHS_GenerateUnmet.R' Computes unmet need variable based on DHS code [http://dhsprogram.com/topics/unmet-need.cfm]
-# 4. 'DHS_output_FP-Indicators.R' Outputs table of family planning indicators by marital status and age
-## Author: United Nations Population Division (Ching Yee Lin, Philipp Ueffing, Stephen Kisambira and Aisha Dasgupta)
-## Project: Making family planning count 
-# [http://www.un.org/en/development/desa/population/projects/making-family-planning-count/index.shtml]
-# [http://www.un.org/en/development/desa/population/theme/family-planning/index.shtml]
-## DHS micro data sets need to be downloaded from the DHS program website [https://dhsprogram.com/]
 
-
-#Compute output table
-
-setwd("v:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/DHS")
-#Translate new surveys
-source("./RCode/DHS_Translate.R")
-
-rm(list = ls())
 #############LIBRARIES##############
-library(foreign)
 library(stats)
-library(plyr)  
 library(dplyr)
-library(reshape2)
+#library(reshape2)  <- this is really outdated, what is it even used for?
 library(tidyr)
 library(tools)
 ####################################
+
+#  rm(list = ls())  <- if your code needs this to run you're skating on thin ice.
+
+# these are utility functions
+source("./Rcode/DHS_config.R")
+source("./Rcode/DHS_readData.R")
+source("./Rcode/DHS_methodClassification.R")
+source("./Rcode/DHS_generateUnmet.R")
+source("./Rcode/DHS_categorization.R")
+source("./Rcode/DHS_translate.R")
+source("./Rcode/DHS_transform.R")
+source("./Rcode/DHS_output.R")
+
+
 #####DIRECTORIES AND FILE LISTS#####
-setwd("v:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/DHS")
-dhs.master <- "V:/DHS/DHSMaster.csv"
 #Load in DHS inventory list for standard surveys and individual record is available
-dhs.list <- read.csv(dhs.master, header=TRUE, stringsAsFactors=FALSE, na.strings=c("..", "NA", "", " "))
+DHSMaster <- read.csv(DHSMasterFile, header=TRUE, 
+  stringsAsFactors=FALSE, na.strings=c("..", "NA", "", " "))
 
-dhs.list <- subset(dhs.list, !is.na(Survey.code) & !is.na(Individual.Recode) &
-                     (Type!="MIS" & Type=="Standard DHS" | Type=="Interim DHS" | Type=="Continuous DHS") & !is.na(Recode))
+DHSMaster <- DHSMaster %>% dplyr::filter(!is.na(Survey.code), !is.na(Individual.Recode), !is.na(Recode),
+  (Type!="MIS" & Type=="Standard DHS" | Type=="Interim DHS" | Type=="Continuous DHS"), 
+  Survey.code != "br21")
 
-#Exclude Brazil (Not nationally representative)
-dhs.list <- subset(dhs.list, !Survey.code %in% c("br21"))
-
-## List of special surveys need special unmet need calculation
-specialSurveys <- c("br31", "kh61", "co60", "ci35", "ga41", "co60", "ci35", "ga41",
-                    "gu34", "gu41" , "ht31" , "ia23" , "ia42", "ia52" , "jo42" , "kk42" ,
-                    "ls60", "md21" , "mv50" , "mr42" , "ma43", "np51" , "ni22" , "tz3a" ,
-                    "tz41", "tz60" , "tr31" , "tr4a" , "ug33", "ye21") 
 
 #List of translated surveys
 translated.list <- file_path_sans_ext(dir("./Translated_RDataFiles",pattern=".RData"))
-#Retain the translated surveys that exist in dhs.list
-working.list <- translated.list[translated.list %in% dhs.list$Individual.Recode | translated.list %in% dhs.list$Survey.code]
+#Retain the translated surveys that exist in DHSMaster
+working.list <- translated.list[translated.list %in% DHSMaster$Individual.Recode | translated.list %in% DHSMaster$Survey.code]
+translationTable <- read.csv(translationTableFile, header=TRUE, stringsAsFactors=FALSE)
+file.list <- FileSetting()
+
 ####################################
 
-########FILES OUTPUT SETTING########
-FileSetting <- function(){
-  fileout <- "DHS_CPTYPE_by_MARSTAT_WIDE"
-  filelong <- "DHS_CPTYPE_by_MARSTAT_LONG"
-  fileMETHlong <- "DHS_CPMETHOD_by_MARSTAT_LONG"
-  fileMETH <- "DHS_CPMETHOD_by_MARSTAT_WIDE"
-  
-  file.list <- c(fileout, filelong,fileMETHlong,fileMETH)
-  
-  ## Check existence of output file
-  for (i in 1:length(file.list)){
-    if(file.exists(paste0(file.list[i],".csv"))){
-      #Remove completely if it is empty
-      if(file.size(paste0(file.list[i],".csv"))==0){
-        file.remove(paste0(file.list[i],".csv"))
-      }else{
-        #Move to Prior folder if it is not empty
-        file.rename(paste0(file.list[i],".csv"), paste0("Prior/",file.list[i], "_", substr(file.info(paste0(file.list[i],".csv"))$ctime,1,10),".csv"))
-      }
-    }
-    file.list[i]<-paste0(file.list[i],".csv")
-  }
-  
-  ## Create output file 
-  file.create(file.list)
-  return(file.list)
-}
-####################################
+# Writes one .RData file per survey...
+translateSurveys(translationTable, outputPath, dataPath)
 
-#######Calculation Functions########
-CrossTab <- function(VarWeight,VarMarital, VarMethod,df,Formula){
-  AllWomen <- sum
-  if(Formula==T){
-    if(VarWeight==T){
-      tab_All <- as.data.frame(addmargins(xtabs(weights~get(VarMarital)+get(VarMethod), ir.data),1,FUN=AllWomen))%>%
-        dcast(get.VarMarital.~get.VarMethod.,value.var="Freq")%>%
-        mutate(agegroup = "[Total]")
-      tab_Age <- as.data.frame(addmargins(xtabs(weights~get(VarMarital)+agegroup+get(VarMethod),ir.data),1,FUN=AllWomen))%>%
-        dcast(get.VarMarital.+agegroup~get.VarMethod.,value.var="Freq")
-    }else{
-      tab_All <- as.data.frame(addmargins(xtabs(~get(VarMarital)+get(VarMethod),ir.data),1,FUN=AllWomen)) %>%
-        dcast(get.VarMarital.~get.VarMethod.,value.var="Freq")%>%
-        mutate(agegroup="[Total]")
-      tab_Age <- as.data.frame(addmargins(xtabs(~get(VarMarital)+agegroup+get(VarMethod),ir.data),1, FUN=AllWomen))%>%
-        dcast(get.VarMarital.+agegroup~get.VarMethod.,value.var="Freq")
-    }
-  }else{
-    if(VarWeight==T){
-      tab_All <- as.data.frame(xtabs(weights~get(VarMarital)+get(VarMethod),ir.data))%>%
-        dcast(get.VarMarital.~get.VarMethod.,value.var="Freq")%>%
-        mutate(agegroup = "[Total]")
-      tab_Age <- as.data.frame(xtabs(weights~get(VarMarital)+agegroup+get(VarMethod),ir.data))%>%
-        dcast(get.VarMarital.+agegroup ~ get.VarMethod.,value.var="Freq")
-    }else{
-      tab_All <- as.data.frame(xtabs(~get(VarMarital)+get(VarMethod),ir.data))%>%
-        dcast(get.VarMarital.~get.VarMethod.,value.var="Freq")%>%
-        mutate(agegroup = "[Total]")
-      tab_Age <- as.data.frame(xtabs(~get(VarMarital)+agegroup+get(VarMethod),ir.data))%>%
-        dcast(get.VarMarital.+agegroup ~ get.VarMethod.,value.var="Freq")
-    }
-  }
-  
-  names(tab_All)[which(names(tab_All)=="get.VarMarital.")] <- "mstatus"
-  names(tab_Age)[which(names(tab_Age)=="get.VarMarital.")] <- "mstatus"
-  
-  tab <- full_join(tab_All,tab_Age)
-  
-  return(tab)
-}
-CP_OUTPUT <- function(choice){
-  #Remove observations when 
-  ## 1. marital status is missing
-  ### NA retained for married women in mstatusBinary
-  ## 2. Method is NA/missing
-  ## 3. Agegroup is NA
-  ir.data <- filter(ir.data, (mstatus != 9 | is.na(mstatus)) ,method!="Unknown",!is.na(method),!is.na(agegroup))
-  if(choice == "Both"){
-    cp_MW <- CP_OUTPUT("MW")
-    cp_UMW <- CP_OUTPUT("UMW")
-    
-    final <- rbind(cp_MW,cp_UMW)
-    
-    tTYPE <- ResetRecords(final)
-    
-    return(tTYPE)
-    
-  }else if(choice == "MW"){
-    cp<-CrossTab(T,"mstatusBinary","method",df,T)
-    samplesize <- CrossTab(F,"mstatusBinary","method",df,T)
-    umn <- CrossTab(T,"mstatusBinary","unmettot",df,T)
-  }else if(choice == "UMW"){
-    cp<-CrossTab(T,"mstatus","method",df,F)
-    samplesize<-CrossTab(F,"mstatus","method",df,F)
-    umn <- CrossTab(T,"mstatus","unmettot",df,F)
-  }
-  
-  samplesize$n_unweighted <- rowSums(samplesize[,c("Not_using_any_method","Using_modern_method","Using_traditional_method")])
-  samplesize$nAny_unweighted <- rowSums(samplesize[,c("Using_modern_method","Using_traditional_method")])
-  samplesize <- samplesize[,c("mstatus","agegroup","n_unweighted","nAny_unweighted")]
-  
-  cp <- full_join(cp,samplesize)
-  final <- full_join(cp, umn, by= c("mstatus", "agegroup")) %>%
-    mutate(cpModern = Using_modern_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) * 100,
-           cpTraditional = Using_traditional_method / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
-           cpAny = (Using_modern_method + Using_traditional_method) / (Not_using_any_method + Using_modern_method + Using_traditional_method) *100,
-           Unmet = Unmet_need / (Unmet_need + No_unmet_need) * 100,
-           `Demand satisfied by modern` = ifelse(!is.na(Unmet),(Using_modern_method) / (Using_modern_method + Using_traditional_method + Unmet_need) * 100,NA),
-           country = SurveyInfo$CountryName.UN,
-           iso = SurveyInfo$LocID,
-           catalogID = SurveyInfo$CatalogID,
-           Universe = SurveyInfo$Sample.Type.Female,
-           DateToday = Sys.Date(),
-           Phase = SurveyInfo$Phase,
-           SampleType = SurveyInfo$Type,
-           surveyShort = SurveyInfo$ShortName,
-           survey = SurveyInfo$SurveyName,
-           Startyear = SurveyInfo$StartYear,
-           Endyear = SurveyInfo$EndYear,
-           StartDate = SurveyInfo$StartDate,
-           EndDate = SurveyInfo$EndDate,
-           RefDate = SurveyInfo$RefDate
-    ) 
-  
-  tTYPE <- select(final, country : Universe, mstatus,agegroup,Not_using_any_method:agegroup, No_unmet_need:`Demand satisfied by modern`, DateToday : RefDate, n_unweighted,nAny_unweighted)
-  return(tTYPE)
-}
-CP_METH <- function(choice){
-  AllWomen <- sum
-  if(choice == "Both"){
-    cpMETH_MW<-CP_METH("MW")
-    if(nrow(as.data.frame(xtabs(weights ~ mstatus + methodspecific_lab,ir.data)))>0){
-      cpMETH_UMW<-CP_METH("UMW")
-      cpMETH <- rbind(cpMETH_MW,cpMETH_UMW)
-    }else{
-      cpMETH <- cpMETH_MW
-    }
-    return(cpMETH)
-  }else{
-    if(choice=="MW"){
-      cpMETH_All <- as.data.frame(addmargins(xtabs(weights ~ mstatusBinary + methodspecific_lab,ir.data),1,FUN=AllWomen)) %>%
-        mutate(agegroup ="[Total]")
-      cpMETH_Age <- as.data.frame(addmargins(xtabs(weights ~ mstatusBinary + methodspecific_lab+agegroup,ir.data),1,FUN=AllWomen))
-      
-      umnAll <- as.data.frame(addmargins(xtabs(weights~mstatusBinary + specific_unmet, ir.data),1,FUN=AllWomen))%>%
-        mutate(agegroup = "[Total]")
-      
-      umnAge <- as.data.frame(addmargins(xtabs(weights~mstatusBinary + specific_unmet + agegroup,ir.data),1,FUN=AllWomen))
-      
-    }else if (choice == "UMW"){
-      cpMETH_All <- as.data.frame(xtabs(weights ~ mstatus + methodspecific_lab,ir.data)) %>%
-        mutate(agegroup = "[Total]")
-      cpMETH_Age <- as.data.frame(xtabs(weights ~ mstatus + methodspecific_lab + agegroup, ir.data))
-      
-      umnAll <- as.data.frame(xtabs(weights~mstatus + specific_unmet, ir.data))%>%
-        mutate(agegroup = "[Total]")
-      
-      umnAge <- as.data.frame(xtabs(weights~mstatus + specific_unmet + agegroup,ir.data))
-    }
-    
-    if(nrow(cpMETH_All) >0 & nrow(cpMETH_Age)>0){
-      umn <- full_join(umnAll,umnAge)
-      names(umn)[which(names(umn)=="specific_unmet")] <- "methodspecific_lab"
-      cpMETH <- full_join(cpMETH_All,cpMETH_Age)
-      cpMETH <- full_join(cpMETH,umn)
-      if("mstatusBinary" %in% colnames(cpMETH)){
-        colnames(cpMETH)[colnames(cpMETH)=="mstatusBinary"] <- "mstatus"
-      }
-      cpMETH <- cpMETH %>%
-        arrange(mstatus,agegroup)%>%
-        mutate(country = SurveyInfo$CountryName.UN,
-               iso = SurveyInfo$LocID,
-               catalogID = SurveyInfo$CatalogID,
-               Universe = SurveyInfo$Sample.Type.Female,
-               surveyShort = SurveyInfo$ShortName,
-               survey = SurveyInfo$SurveyName,
-               Startyear = SurveyInfo$StartYear,
-               Endyear = SurveyInfo$EndYear,
-               StartDate = SurveyInfo$StartDate,
-               EndDate = SurveyInfo$EndDate,
-               RefDate = SurveyInfo$RefDate
-        )
-      return (cpMETH)
-    }else{
-      return (NULL)
-    }
-  }
-  
-}
-####################################
-
-######Output Cleaning Functions#####
-ResetRecords <- function(t){
-  mstat.list <- c("Formerly married","Never married")
-  group.list <- c("AllWomen","Unmarried/Not-in-union")
-  
-  for(m in mstat.list){
-    #Adjust for the new surveys that do not ask CP questions to unmarried women
-    if(t$Using_modern_method[which(t$mstatus==m & t$agegroup == "[Total]")]==0 & 
-       t$Using_traditional_method[which(t$mstatus==m & t$agegroup == "[Total]")]==0){
-      t$cpAny[which(t$mstatus==m)]<-NA
-      t$cpModern[which(t$mstatus==m)]<-NA
-      t$cpTraditional[which(t$mstatus==m)]<-NA
-      t$Unmet[which(t$mstatus==m)]<-NA
-      t$`Demand satisfied by modern`[which(t$mstatus==m)]<-NA
-      
-      for(g in group.list){
-        t$cpAny[which(t$mstatus==g)]<-NA
-        t$cpModern[which(t$mstatus==g)]<-NA
-        t$cpTraditional[which(t$mstatus==g)]<-NA
-        t$Unmet[which(t$mstatus==g)]<-NA
-        t$`Demand satisfied by modern`[which(t$mstatus==g)]<-NA
-      }
-    }
-    if(t$Unmet_need[which(t$mstatus==m &t$agegroup=="[Total]")] ==0){
-      t$Unmet[which(t$mstatus==m)]<-NA
-      t$`Demand satisfied by modern`[which(t$mstatus==m)]<-NA
-      
-      for(g in group.list){
-        t$Unmet[which(t$mstatus==g)]<-NA
-        t$`Demand satisfied by modern`[which(t$mstatus==g)]<-NA
-      }
-    }
-  }
-  
-  #Adjust for Ever married sample
-  if(all(t$Universe=="Ever Married")){
-    t <- subset(t, subset=t$mstatus!="Unmarried/Not-in-union")
-    for(r in 13:17){
-      t[(which(t$mstatus=="AllWomen")),r]<-NA
-      if(r<12){
-        if(all(t[(which(t$mstatus=="Never married")),r]==0)){
-          t[(which(t$mstatus=="Never married")),r] <- NA
-        }
-      }
-    }
-  }
-  
-  #Adjust for DHS-I
-  t$Unmet[which(t$Phase == "DHS-I")]<-NA
-  t$No_unmet_need[which(t$Phase == "DHS-I")]<-NA
-  t$Unmet_need[which(t$Phase == "DHS-I")]<-NA
-  
-  return(t)
-}
-Output <- function(tTYPE,tMETH){
-  if (file.size(file.list[1]) == 0){
-    # if the csv output file is empty append the computed values to the output file but output the column names first, that is,in the first row
-    write.table(tTYPE, file = file.list[1], append = TRUE, quote = TRUE, sep = ",", row.names = FALSE, col.names = TRUE)
-  } else {
-    # if the csv output file already has observations in it append the results to the output file without displaying column names each time data is outputted
-    write.table(tTYPE, file = file.list[1], append = TRUE, quote = TRUE, sep = ",", row.names = FALSE, col.names = FALSE)
-  }
-  
-  #Output for tMETH
-  if (file.size(file.list[3]) == 0){
-    # if the csv output file is empty append the computed values to the output file but output the column names first, that is,in the first row
-    write.table(tMETH, file = file.list[3], quote = TRUE, append = TRUE, sep = ",", row.names = FALSE, col.names = TRUE)
-  } else {
-    # if the csv output file already has observations in it append the results to the output file without displaying column names each time data is outputted
-    write.table(tMETH, file = file.list[3], quote = TRUE, append = TRUE, sep = ",", row.names = FALSE, col.names = FALSE)
-  }
-}
-Transform <- function(){
-  df <- read.csv(file.list[1])
-  
-  tt <- df %>%
-    gather(Indicator, Data.Value, cpModern:`Demand.satisfied.by.modern`)%>%
-    filter(mstatus!="Marital Status, Missing")
-  
-  write.table(tt, file.list[2] ,quote=TRUE,sep=",",row.names=F)
-  
-  #tMETH
-  tLong <- read.csv(file = file.list[3])
-  colList <- c("Pill","Daily pill","Monthly pill","IUD","Norplant/Implants","Condom","Female Condom","Female Sterilization","Male Sterilization","Patch","Ring","Injections","Injection (3 monthly)","Injection (monthly)",
-               "Diaphragm/Foam/Jelly","Diaphragm","Diaphragm/Foam","Diaphragm/Jelly","Foam or Jelly","Foaming tablets","Vaginal methods","Lactational amenorrhea (LAM)","Prolonged breastfeeding","Emergency contraception",
-               "Other modern method","Abstinence or periodic abstinence","Periodic abstinence","Cycle Beads/Standard days method","Abstinence","Mucus method","Temperature","Other Rhythm/Calendar/Periodic Abstinence",
-               "Natural family planning, unspecified","Withdrawal","Other traditional/folkloric","Herbs/Plants","Gris-Gris/Amulet","Astrology","Strings","Massage","Douche","OTHER METHOD, UNSPECIFIED","Other specific method 1"
-               ,"Other specific method 2","Other specific method 3","Other specific method 4","modernUser", "traditionalUser", "totalUser", "NotUsing","No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting")
-  
-  tWide <- tLong %>%
-    filter(mstatus %in% c("Married/In-union", "Unmarried/Not-in-union", "AllWomen", "Formerly in-union", "Neverin-union", "Unmarried")) %>%  #filters out surveys from tLong which did not have method specific variable or other problems
-    dcast(catalogID + iso + survey + surveyShort + country + Startyear +Endyear + mstatus + agegroup ~ methodspecific_lab, value.var = "Freq")
-  
-  for (j in colList[!colList %in% names(tWide)]) {
-    tWide[j] <- NA
-  }
-  
-  tWide <- tWide[c(names(tWide)[!names(tWide) %in% colList], colList)]
-  
-  tWide <- tWide %>%
-    mutate(modernUser = rowSums(cbind(Pill, `Daily pill`, `Monthly pill`, IUD, `Norplant/Implants`, Condom, `Female Condom`, `Female Sterilization`,
-                                      `Male Sterilization`,Patch, Ring, Injections, `Injection (3 monthly)`,`Injection (monthly)`,`Diaphragm/Foam/Jelly`,
-                                      Diaphragm, `Diaphragm/Foam`, `Diaphragm/Jelly`, `Foam or Jelly`, `Foaming tablets`,`Vaginal methods`, `Lactational amenorrhea (LAM)`,
-                                      `Emergency contraception`,`Other modern method`),na.rm=T),
-           traditionalUser = rowSums(cbind(`Abstinence or periodic abstinence`,`Periodic abstinence`,`Cycle Beads/Standard days method`, Abstinence,
-                                           `Mucus method`, Temperature,`Other Rhythm/Calendar/Periodic Abstinence`, `Natural family planning, unspecified`,
-                                           Withdrawal,`Other traditional/folkloric`,`Herbs/Plants`,`Gris-Gris/Amulet`,Astrology,Strings,Massage,Douche,`Prolonged breastfeeding`,`OTHER METHOD, UNSPECIFIED`),na.rm=T),
-           totalUser = modernUser+traditionalUser,
-           NotUsing = `Not using`,
-           totalN = rowSums(cbind(modernUser, traditionalUser, NotUsing), na.rm = TRUE)
-    )
-  
-  for (j in colList) {
-    colTitle <- paste("CP", j, sep = "_")
-    if(j %in% c("No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting")){
-      tWide[colTitle] <- tWide[j] / rowSums(tWide[,c("No_Unmet_Need","UnmetNeed_for_Spacing","UnmetNeed_for_Limiting")],na.rm=T)*100
-    }else{
-      tWide[colTitle] <- tWide[j] / rowSums(tWide[, c("modernUser", "traditionalUser", "NotUsing")], na.rm = TRUE) * 100
-    }
-  }
-  
-  write.table(tWide, file = file.list[4], quote = TRUE, sep = ",", row.names = FALSE, col.names = TRUE)
-  
-}
-####################################
-
-#########RUNNING WITH FILES#########
-source("./RCode/DHS_GenerateUnmet.R")
-source("./RCode/DHS_Categorization.R")
-
-file.list<-FileSetting()
-
-for(i in 1:length(working.list)){
-  SurveyID <- working.list[i]
+for(SurveyID in working.list) {
+  SurveyRDataFile <- file.path(output_dir, paste(SurveyID, ".RData"))
   print (SurveyID)
   
-  SurveyInfo <- subset(dhs.list,Survey.code == SurveyID)
-  load(paste("./Translated_RDataFiles/",SurveyInfo$Survey.code,".RData",sep=""))
+  SurveyInfo <- subset(DHSMaster, Survey.code == SurveyID)
+  load(SurveyRDataFile)
   
   if(SurveyID %in% specialSurveys){
-    ir.data <- ir.data[,c(grep("v000|v001|v002|v003|v005|V007|v008|v011|v012|v013|v015|v016|v020|v021|v022|v023|v024|v025|v213|v215|v222|v225|v302|v3a08d|v302a|v312|v313|v375a|v376|v512|v525|v528|v529|v536|v502|V602|v605|b3.01|m6.1|m10.1|s313|s309b|s607c|s607d|method|methodSpecific|weights", 
-                               names(ir.data),ignore.case=TRUE))]
-  }else{
-    ir.data <- ir.data[,c(grep("v000|v001|v002|v003|v005|V007|v008|v011|v012|v013|v015|v016|v020|v021|v022|v023|v024|v025|v213|v215|v222|v225|v302|v3a08d|v302a|v312|v313|v375a|v376|v512|v525|V527|v528|v529|v536|v501|v502|v602|v605|v613|v614|b3.01|m6.1|m10.1|s313|awfactt|awfactu|awfactr|awfacte|awfactw|method|methodSpecific|weights",
-                               names(ir.data), ignore.case=TRUE))]
+    keepColumnRegex <- paste(specialSurveyColumns, sep='|')
+  } else {
+    keepColumnRegex <- paste(ordinarySurveyColumns, sep='|')
   }
-  
-  colnames(ir.data) <- tolower(colnames(ir.data))
+# FIXME: Processes those .RData files I guess.... where did ir.data come 
+# from here???  Did I delete loading it?
+  ir.data <- ir.data %>% dplyr::select(dplyr::matches(keepColumnRegex))
   
   #Restrict Sexually Active Sample
   # ir.data$sexact <- NA
@@ -479,4 +148,5 @@ for(i in 1:length(working.list)){
   
   Output(tTYPE,tMETH)
 }
-Transform()
+
+Transform(file.list)
