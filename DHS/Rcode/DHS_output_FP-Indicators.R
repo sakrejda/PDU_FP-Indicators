@@ -12,9 +12,7 @@
 
 #Compute output table
 
-setwd("v:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/DHS")
 #Translate new surveys
-source("./RCode/DHS_Translate.R")
 
 rm(list = ls())
 #############LIBRARIES##############
@@ -27,8 +25,10 @@ library(tidyr)
 library(tools)
 ####################################
 #####DIRECTORIES AND FILE LISTS#####
-setwd("v:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/DHS")
-dhs.master <- "V:/DHS/DHSMaster.csv"
+source("./Rcode/DHS_Translate.R")
+
+dhs.master <- "DHSMaster.csv"
+
 #Load in DHS inventory list for standard surveys and individual record is available
 dhs.list <- read.csv(dhs.master, header=TRUE, stringsAsFactors=FALSE, na.strings=c("..", "NA", "", " "))
 
@@ -45,7 +45,7 @@ specialSurveys <- c("br31", "kh61", "co60", "ci35", "ga41", "co60", "ci35", "ga4
                     "tz41", "tz60" , "tr31" , "tr4a" , "ug33", "ye21") 
 
 #List of translated surveys
-translated.list <- file_path_sans_ext(dir("./Translated_RDataFiles",pattern=".RData"))
+translated.list <- dir("./Translated_RDataFiles",pattern=".RData") %>% gsub(pattern='\\.RData$', replacement="", x=.)
 #Retain the translated surveys that exist in dhs.list
 working.list <- translated.list[translated.list %in% dhs.list$Individual.Recode | translated.list %in% dhs.list$Survey.code]
 ####################################
@@ -367,8 +367,8 @@ Transform <- function(){
 ####################################
 
 #########RUNNING WITH FILES#########
-source("./RCode/DHS_GenerateUnmet.R")
-source("./RCode/DHS_Categorization.R")
+source("./Rcode/DHS_GenerateUnmet.R")
+source("./Rcode/DHS_Categorization.R")
 
 file.list<-FileSetting()
 

@@ -14,16 +14,8 @@
 #Translate available DHS-ir surveys
 #Only on method variable (v312)
 
-rm(list = ls())
-
-library(foreign)
-library(plyr) 
-library(tools)
-
-setwd("V:/FertilitySection/Alkema_Joint project on contraceptive use trends/1_All-women-estimates&projections/Data-tabulations/DHS")
-
 ## Read in variable translation table
-transTable <- read.csv("v:/DHS/Translation/DHS_VariableTranslation_v312.csv")
+transTable <- read.csv("TranslationTables/DHS_VariableTranslation_v312.csv")
 
 ## Classify modern and tradition contraceptive methods (See translation table for specific method harmonised code)
 modern <- c(100:108, 110:112, 120:122, 130:136, 140, 150, 160)
@@ -32,10 +24,10 @@ other <- c(300:304)
 notusing <- c(999)
 exclude <- c(997, 998)
 
-dhs.dir <- "V:/DHS/Microdata"
+dhs.dir <- "../.."
 
 ## Directory where Populatiohn Division's DHS master file is stored
-dhs.master <- "V:/DHS/DHSMaster.csv"
+dhs.master <- "DHSMaster.csv"
 
 #===================LOAD THE INVENTORY LIST FOR SURVEYS THAT FOLLOW THE DHS STANDARD FOR FORMAT AND VARIABLE NAMES========================
 ## Read in the DHS inventory list for standard surveys into dhs.list dataframe:
@@ -50,10 +42,9 @@ dhs.list <- subset(dhs.list, !is.na(Survey.code) & !is.na(Individual.Recode) &
 dhs.list <- subset(dhs.list, !Survey.code %in% c("br21"))
 
 #Directory where the translated files are stored
-TranslatedPath <- "/Translated_RDataFiles/"
-Translated <- file_path_sans_ext(dir("./Translated_RDataFiles/",pattern = ".RData$"))
+Translated <- dir("./Translated_RDataFiles/",pattern = ".RData$") %>% gsub(pattern="\\.RData$", replacement="", x=.)
 #List of surveys that are in master file, not in translated directory
-Untranslated <- subset(dhs.list, subset=!dhs.list[,"Survey.code"]%in%Translated)
+Untranslated <- subset(dhs.list, subset = !(dhs.list[,"Survey.code"] %in% Translated))
 
 # Only DHS that are in translation table
 #dhs.list <- subset(dhs.list, Individual.Recode %in% names(transTable))
@@ -106,8 +97,10 @@ if(nrow(Untranslated) > 0){
     print (SurveyID)
     
     dosurvey <- subset(Untranslated, Survey.code == SurveyID)
-    ir.data <- read.dta (paste(dhs.dir,"/", toupper(dosurvey$Individual.Recode), "FL.dta", sep=""),
-                         convert.factors = F, convert.underscore = T)
+    dofile <- file.path(dhs.dir, paste(toupper(dosurvey$Individual.Recode), "FL.DTA", sep=""))
+    if (!file.exists(dofile))
+      next()
+    ir.data <- read.dta (dofile, convert.factors = F, convert.underscore = T)
     
     #Only keep variables needed
     ir.data<-ir.data[,names(ir.data)%in%VarToKeep]
