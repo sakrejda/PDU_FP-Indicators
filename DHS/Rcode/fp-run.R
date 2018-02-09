@@ -22,6 +22,12 @@ for (script in script_paths) source(script)
 
 # Reclassify based on translation table and Write one .RData file per survey
 # to the output directory.
+
+# FIXME: Some survey _releases_ are not in DHSMaster (that I have) so the
+#        are not processed.  That's unnecessary.  Some of them even appear
+#        in the translationTables.  We should just run over all surveys
+#        we have matching some criteria and _when_ we lack information 
+#        we should record the state for the survey code in a file.
 for (surveyCode in DHSMaster$Survey.code) {
   outputFile <- file.path(outputPath, paste0(surveyCode, ".rds"))
   if (file.exists(outputFile)) {
@@ -46,7 +52,7 @@ for (surveyCode in DHSMaster$Survey.code) {
 }
 
 
-stop()
+stop("This is as far as we need to go.")
 
 
 for(SurveyID in translatedSurveysInMaster) {

@@ -39,6 +39,8 @@ ordinarySurveyColumns <- c("v000", "v001", "v002", "v003", "v005", "V007", "v008
 ## v605: Wantedness of Future Child
 ## b3_01: Date of last Birth
 ## v008: Date of Interview
+
+# FIXME: The "Unmet" function seems to require more than this so... wtf?
 requiredUnmetVar <- c("v213","v225","v312","m10.1","m6.1","v605","b3.01","v008")
 
 # Load in DHS inventory list for standard surveys and individual record is available
@@ -49,15 +51,6 @@ DHSMaster <- read.csv(DHSMasterFile, header=TRUE,
   dplyr::filter(!is.na(Survey.code), !is.na(Individual.Recode), !is.na(Recode),
     (Type!="MIS" & Type=="Standard DHS" | Type=="Interim DHS" | Type=="Continuous DHS"), 
     Survey.code != "br21")
-
-# These have already had RData output files produced.
-translatedSurveys <- dir(outputPath, pattern="\\.RData$") %>% gsub('\\.RData$', '', x=.)
-
-# Retain only the translated surveys that exist in DHSMaster
-# ... the others are not processed (?)
-translatedSurveysInMaster <- translatedSurveys[
-  individualRecode(translatedSurveys) %in% DHSMaster$Individual.Recode | 
-  translatedSurveys %in% DHSMaster$Survey.code]
 
 #' This is where survey-specific values for contraceptive type are recoded more
 #' generally.
