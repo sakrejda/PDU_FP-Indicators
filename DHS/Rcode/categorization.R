@@ -83,7 +83,7 @@ Categorization <- function(data) {
 #' to generic codes and the method classification to classify methods
 #' into more general categories (modern, traditional, other, notusing, 
 #' and exclude.
-contraceptiveClassification <- function(data, methodClasses, translationTable){
+contraceptiveClassification <- function(data, methodClasses, translationTable, surveyCode){
   
   modern <- methodClasses[['modern']]
   traditional <- methodClasses[['traditional']] 
@@ -92,7 +92,7 @@ contraceptiveClassification <- function(data, methodClasses, translationTable){
   exclude <- methodClasses[['exclude']]
   
   # Harmonized variables
-  original <- as.numeric(gsub("=.*$", "", translationTable[ , dosurvey$Individual.Recode]))
+  original <- as.numeric(gsub("=.*$", "", translationTable[ , individualRecode(surveyCode)]))
   harmony <- translationTable[ ,"harmonised"]
   harmonised_LAB <- as.character(translationTable[ , "label"])
   harmonised_LAB <- sub("^\\s+", "", harmonised_LAB) #Trim off trailing spaces for subcategories of methods in translation table

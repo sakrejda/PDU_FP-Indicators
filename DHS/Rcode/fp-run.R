@@ -1,48 +1,55 @@
 
 #############LIBRARIES##############
-library(stats)
+library(stats) # <- this IS needed for Rscript-driven runs.
 library(dplyr)
-#library(reshape2)  <- this is really outdated, what is it even used for?
 library(tidyr)
-library(tools)
-####################################
 
-#  rm(list = ls())  <- if your code needs this to run you're skating on thin ice.
+#library(reshape2)  <- this is really outdated, what is it even used for?
+#library(tools) ## <- why?
+####################################
 
 # these are utility functions
-source("./Rcode/DHS_config.R")
-source("./Rcode/DHS_readData.R")
-source("./Rcode/DHS_methodClassification.R")
-source("./Rcode/DHS_generateUnmet.R")
-source("./Rcode/DHS_categorization.R")
-source("./Rcode/DHS_translate.R")
-source("./Rcode/DHS_transform.R")
-source("./Rcode/DHS_output.R")
 
+scripts <- c( "config.R", "utilities.R", "generateUnmet.R", 
+  "categorization.R", "transform.R", "output.R")
 
-#####DIRECTORIES AND FILE LISTS#####
-#Load in DHS inventory list for standard surveys and individual record is available
-DHSMaster <- read.csv(DHSMasterFile, header=TRUE, 
-  stringsAsFactors=FALSE, na.strings=c("..", "NA", "", " "))
+script_paths <- file.path(PDUCodePath, scripts)
 
-DHSMaster <- DHSMaster %>% dplyr::filter(!is.na(Survey.code), !is.na(Individual.Recode), !is.na(Recode),
-  (Type!="MIS" & Type=="Standard DHS" | Type=="Interim DHS" | Type=="Continuous DHS"), 
-  Survey.code != "br21")
+for (script in script_paths) source(script)
 
-
-#List of translated surveys
-translated.list <- file_path_sans_ext(dir("./Translated_RDataFiles",pattern=".RData"))
-#Retain the translated surveys that exist in DHSMaster
-working.list <- translated.list[translated.list %in% DHSMaster$Individual.Recode | translated.list %in% DHSMaster$Survey.code]
-translationTable <- read.csv(translationTableFile, header=TRUE, stringsAsFactors=FALSE)
-file.list <- FileSetting()
 
 ####################################
 
-# Writes one .RData file per survey...
-translateSurveys(translationTable, outputPath, dataPath)
+# Reclassify based on translation table and Write one .RData file per survey
+# to the output directory.
+for (surveyCode in DHSMaster$Survey.code) {
+  outputFile <- file.path(outputPath, paste0(surveyCode, ".rds"))
+  if (file.exists(outputFile)) {
+    msg <- paste0("skipping '", surveyCode, "' due to file '", 
+      outputFile, "' being present.")
+    print(msg)
+    next()
+  }
+  irData <- DHSReadDTA(dataPath, surveyCode, varToKeep)
+  if (is.null(irData)) {
+    msg <- paste0("input file for survey '", surveyCode, "', at path: '",
+      dataPath, "', is not available. Skipping.")
+    print(msg)
+    next()
+  }
+  msg <- paste0("input file for survey '", surveyCode, "' found and output",
+    " file not present, processing.")
+  print(msg)
+  reclassifiedData <- contraceptiveClassification(irData, methodClassification, 
+    translationTable, surveyCode)
+  saveRDS(reclassifiedData, file = outputFile)
+}
 
-for(SurveyID in working.list) {
+
+stop()
+
+
+for(SurveyID in translatedSurveysInMaster) {
   SurveyRDataFile <- file.path(output_dir, paste(SurveyID, ".RData"))
   print (SurveyID)
   
@@ -111,4 +118,4 @@ for(SurveyID in working.list) {
   Output(tTYPE,tMETH)
 }
 
-Transform(file.list)
+FileSetting() %>% Transform()
