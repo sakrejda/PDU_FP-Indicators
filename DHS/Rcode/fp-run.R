@@ -47,7 +47,8 @@ for (surveyCode in DHSMaster$Survey.code) {
     " file not present, processing.")
   print(msg)
   reclassifiedData <- contraceptiveClassification(irData, methodClassification, 
-    translationTable, surveyCode)
+    translationTable, surveyCode) %>% Unmet(surveyCode, specialSurveys)
+ 
   saveRDS(reclassifiedData, file = outputFile)
 }
 
