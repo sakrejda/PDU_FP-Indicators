@@ -40,7 +40,7 @@ ordinarySurveyColumns <- c("v000", "v001", "v002", "v003", "v005", "V007", "v008
 ## b3_01: Date of last Birth
 ## v008: Date of Interview
 
-# FIXME: The "Unmet" function seems to require more than this so... wtf?
+# FIXME: The "Unmet" function seems to require more than this so... huh?
 requiredUnmetVar <- c("v213","v225","v312","m10.1","m6.1","v605","b3.01","v008")
 
 # Load in DHS inventory list for standard surveys and individual record is available
