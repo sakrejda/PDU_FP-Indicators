@@ -112,7 +112,9 @@ Unmet <- function(data, surveyID, specialSurveys) {
       data$sexact[is.na(data$sexact) & data$v528 == 95] <- 1
     } else {
       data$sexact[data$v528 > 30] <- 2
-      data$sexact[data$v536 == 0] <- 3
+      if (('v536' %in% colnames(data))) {
+        data$sexact[data$v536 == 0] <- 3
+      }
     }
   }
 
@@ -166,21 +168,22 @@ Unmet <- function(data, surveyID, specialSurveys) {
     
     # Pakistan round 6 DHS does still have v302 as name and not v302a 
     # (Not specified in DHS code because differently coded)
-    if(surveyID == "pk61") {
+    if(surveyID %in% c("pk61", "ke03")) {
       data$v302a <- data$v302
     }
-    
-    data$infec[
-      substr(data$v000,3,3) %in% c("6","7") & 
-      data$v502 == 1 & 
-      data$v512>=5 & 
-     !is.na(data$v512) & 
-      (data$tsinceb>59 | is.na(data$tsinceb)) & 
-       data$v302a==0 &
-      (data$pregPPA24!=1 | is.na(data$pregPPA24))
-    ] <- 1   # Infecund
-    # FIXME: The rampant use of alternative codes for NA is killing  
-    #        this code.
+   
+    if (substr(surveyID, 3, 3) %in% 6:7) { 
+      data$infec[
+        data$v502 == 1 & 
+        data$v512>=5 & 
+       !is.na(data$v512) & 
+        (data$tsinceb>59 | is.na(data$tsinceb)) & 
+         data$v302a==0 &
+        (data$pregPPA24!=1 | is.na(data$pregPPA24))
+      ] <- 1   # Infecund
+    }
+      # FIXME: The rampant use of alternative codes for NA is killing  
+      #        this code.
   }
   
   # Box 2 
@@ -237,26 +240,20 @@ Unmet <- function(data, surveyID, specialSurveys) {
       is.na(data$infec) & 
       data$v375a == 23
     ] <- 1
-  } else {
-    # DHS IV+ Surveys
+  } else if (substr(surveyID, 3, 3) %in% 4:7) { # DHS IV+ Surveys
     data$infec[
-      substr(data$v000, 3, 3) %in% c("4","5","6","7") & 
       data$v3a08d == 1
     ] <- 1
-    
-    # DHS III Surveys
+  } else if (substr(surveyID, 3, 3) %in% c("3", "T")) { # DHS III Surveys
     data$infec[
-      substr(data$v000, 3, 3) %in% c("3","T") & 
       data$v375a == 23
     ] <- 1
-    
-    # DHS II Surveys
+  } else if (substr(surveyID, 3, 3) == "2") { # DHS II Surveys
     # Reason not using contraception does not exists in DHSII
     # Use Reason Not Intending to use In Future
     data$infec[
-      substr(data$v000, 3, 3) == "2" & 
       data$v376 == 14
-    ]<-1
+    ] <- 1
   }
   
   # Box 4 

@@ -10,8 +10,7 @@ library(tidyr)
 
 # these are utility functions
 
-scripts <- c( "config.R", "utilities.R", "generateUnmet.R", 
-  "categorization.R", "transform.R", "output.R")
+scripts <- c( "config.R", "utilities.R", "generateUnmet.R", "categorization.R")
 
 script_paths <- file.path(PDUCodePath, scripts)
 
@@ -57,9 +56,6 @@ for (surveyCode in surveyCodes) {
 }
 
 
-stop("This is as far as we need to go.")
-
-
 # This was used to categorize Marital Status, Age:
-  ir.data <- calculateNewVariables(ir.data)
+#  ir.data <- calculateNewVariables(ir.data)
   

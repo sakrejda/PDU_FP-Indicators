@@ -147,17 +147,21 @@ insertWantedLast <- function(data, surveyID) {
   if (surveyID %in% c('ke42', 'ke52'))
     data[['m10.1']] <- data[['m10_1']]
 
-  must_contain(data, c('v225', 'v000', 'm10.1'), 'wantedlast')
+
   # Classification of wantedness of current / last birth
   data$wantedlast <- NA
-  data$wantedlast <- data$v225    ## Based on the current pregnancy
+  #must_contain(data, c('v225', 'v000', 'm10.1'), 'wantedlast')
+  if ('v225' %in% colnames(data)) 
+    data$wantedlast <- data$v225    ## Based on the current pregnancy
   
   # Based on maternity history
-  indexWL <- 
-    (is.na(data$wantedlast) | data$wantedlast==9) &  # not yet calculated
-    (data$v213 != 1 | is.na(data$v213))              # currently pregnant or don't know
-  data$wantedlast[indexWL] <- data$m10.1[indexWL]    # answer from maternity survey
-  rm(indexWL)
+  if (all(c('v213', 'm10.1') %in% colnames(data))) {
+    indexWL <- 
+      (is.na(data$wantedlast) | data$wantedlast==9) &  # not yet calculated
+      (data$v213 != 1 | is.na(data$v213))              # currently pregnant or don't know
+    data$wantedlast[indexWL] <- data$m10.1[indexWL]    # answer from maternity survey
+    rm(indexWL)
+  }
   
   # Special Survey 
   if (surveyID %in% c("ci35", "md21", "ni22")) {
