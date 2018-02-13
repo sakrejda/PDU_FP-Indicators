@@ -1,15 +1,16 @@
+reject_na <- function(x) ifelse(is.na(x), FALSE, x)
+
 must_contain <- function(data, s, target) {
   if (isTRUE(all(s %in% names(data)))) {
     return(TRUE)
   } else {
+    s <- s[!(s %in% names(data))]
     msg <- paste0("Data is missing columns required",
       " to calculate target: '", target, "'.\n")
     msg <- paste0(msg, "Missing columns are:\n")
     msg <- paste0(msg, paste0("  ", s, collapse="\n"))
     stop(msg)
-  } else {
-    return(NULL)
-  }
+  } 
 }
 
 individualRecode <- function(surveyRecode) {
@@ -46,7 +47,7 @@ DHSReadDTA <- function(dataPath, surveyCode, keep) {
 #' @return input data frame with a `tsinceb` column added
 insertTimeSinceBirth <- function(data) {
   must_contain(data, 'v000', 'time since birth')
-  if (data$v000 < 7) {
+  if (all(data$v000 < 7)) {
     must_contain(data, c('v008', 'b3.01'), 'time since birth')
     data$tsinceb = data$v008 - data$b3.01
   } else {
@@ -72,10 +73,10 @@ insertTimeSincePeriod <- function(data) {
   time <- substr(data$v215, 2, 3)
   miscoded <- nchar(data$v215) != 3
   special <- time > 90 | miscoded | response_type == 9
-  in_days <- (response_type == 1) & !special
-  in_weeks <- (response_type == 2) & !special
-  in_months <- (response_type == 3) & !special
-  in_years <- (response_type == 3) & !special
+  in_days <- ((response_type == 1) & !special) %>% reject_na()
+  in_weeks <- ((response_type == 2) & !special) %>% reject_na()
+  in_months <- ((response_type == 3) & !special) %>% reject_na()
+  in_years <- ((response_type == 3) & !special) %>% reject_na()
   data$tsincep <- NA
   data$tsincep[in_days] <- data$v215[in_days] / 30
   data$tsincep[in_weeks] <- data$v215[in_weeks] / 4.3
@@ -100,28 +101,37 @@ insertTimeSincePeriod <- function(data) {
 #' @param data data frame
 #' @return input data frame with a 'pregPPA' 
 #'         column added.
-insertPPPA <- function(data) {
+insertPPPA <- function(data, surveyCode) {
+  if (surveyCode == 'ke03') {  ## Added based on dta-file labels
+    data$v213 <- NA
+    data$v213[!is.na(data$v215) & data$v215 == 994] <- 1
+  }
   
   data$pregPPA <- NA
-  data$pregPPA[data$v213 == 1 | data$m6.1 == 96] <- 1
+  data$pregPPA[data$v213 == 1] <- 1
+  if ('m6.1' %in% colnames(data)) {
+    data$pregPPA[data$m6.1 == 96] <- 1
+  }
   
   # For women with missing data or "Period not Returned" 
   # as date of last menstrual, we use secondary data to
   # derive those classified as PPA.
-  data$pregPPA[
-    (is.na(data$m6.1) | data$m6.1==97 | data$m6.1==99) & 
-    (data$tsincep > data$tsinceb) & 
-     data$tsinceb < 60 & 
-    !is.na(data$tsincep) & !is.na(data$tsinceb)
-  ] <- 1
-
-  # "Before Last Birth" as time since last period in the last 5 years
-  data$pregPPA[
-    (is.na(data$m6.1) | data$m6.1 == 97 | data$m6.1 == 99) & 
-     data$v215 == 995 & 
-     data$tsinceb < 60 & 
-    !is.na(data$tsinceb)
-  ] <- 1
+  if (all(c('m6.1', 'tsinceb') %in% colnames(data))) {
+    data$pregPPA[
+      (is.na(data$m6.1) | data$m6.1==97 | data$m6.1==99) & 
+      (data$tsincep > data$tsinceb) & 
+       data$tsinceb < 60 & 
+      !is.na(data$tsincep) & !is.na(data$tsinceb)
+    ] <- 1
+  
+    # "Before Last Birth" as time since last period in the last 5 years
+    data$pregPPA[
+      (is.na(data$m6.1) | data$m6.1 == 97 | data$m6.1 == 99) & 
+       data$v215 == 995 & 
+       data$tsinceb < 60 & 
+      !is.na(data$tsinceb)
+    ] <- 1
+  }
   return(data)
 }
 
@@ -133,7 +143,10 @@ insertPPPA <- function(data) {
 #' @param data data frame
 #' @return input data frame with a 'pregPPA' 
 #'         column added.
-insertWantedLast <- function(data, SurveyID) {
+insertWantedLast <- function(data, surveyID) {
+  if (surveyID %in% c('ke42', 'ke52'))
+    data[['m10.1']] <- data[['m10_1']]
+
   must_contain(data, c('v225', 'v000', 'm10.1'), 'wantedlast')
   # Classification of wantedness of current / last birth
   data$wantedlast <- NA
@@ -147,11 +160,11 @@ insertWantedLast <- function(data, SurveyID) {
   rm(indexWL)
   
   # Special Survey 
-  if (SurveyID %in% c("ci35", "md21", "ni22")) {
+  if (surveyID %in% c("ci35", "md21", "ni22")) {
     data$wantedlast <- mapvalues(data$wantedlast, from = c(4,8), to = c(2,2))
   }
   
-  if (SurveyID == "ni22") {
+  if (surveyID == "ni22") {
     data$wantedlast[data$v000 == 4] <- 1
   }
   

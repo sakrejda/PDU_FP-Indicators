@@ -22,7 +22,8 @@ Unmet <- function(data, surveyID, specialSurveys) {
     # Set unmet need to NA for unmarried women if survey only 
     # included ever-married women or only collected necessary data 
     # for married women
-    data$unmet[which(data$v502 != 1 & data$v020 == 1)] <- 98
+    if (all(c('v502', 'v020') %in% colnames(data)))
+      data$unmet[which(data$v502 != 1 & data$v020 == 1)] <- 98
   }
  
   ##############################################################################  
@@ -59,13 +60,13 @@ Unmet <- function(data, surveyID, specialSurveys) {
   #
   data <- insertTimeSinceBirth(data)
   data <- insertTimeSincePeriod(data)
-  data <- insertPPPA(data) # pregnant or post-partum amenorheic
+  data <- insertPPPA(data, surveyID) # pregnant or post-partum amenorheic
   
   # Select only women who are pregnant or PPA <24Months
   data$pregPPA24 <- NA
   data$pregPPA24[data$pregPPA == 1 & data$tsinceb < 24] <- 1
  
-  data <- insertWantedLast(data) 
+  data <- insertWantedLast(data, surveyID) 
   
   data$unmet[
     is.na(data$unmet)    &  # don't know if it's unmet need

@@ -17,18 +17,22 @@ script_paths <- file.path(PDUCodePath, scripts)
 
 for (script in script_paths) source(script)
 
+source_files <- dir(path='../source', pattern='\\.ZIP', full.names=TRUE, ignore.case=TRUE)
+files_on_women <- pdhs::filter_file_names(source_files, latest=TRUE, country="KE", dataset="IR", 
+  format = pdhs::get_file_format_code("Stata"))
+
+pdhs::filtered_unzip(files_on_women, 'dta', dataPath)
+
+dtaOnly <- dir(path=dataPath, pattern='^KEIR..FL\\.DTA', full.names=TRUE)
+surveyCodes <- paste0(substr(basename(dtaOnly), 1,2), substr(basename(dtaOnly), 5,6)) %>%
+  tolower
 
 ####################################
 
 # Reclassify based on translation table and Write one .RData file per survey
 # to the output directory.
 
-# FIXME: Some survey _releases_ are not in DHSMaster (that I have) so the
-#        are not processed.  That's unnecessary.  Some of them even appear
-#        in the translationTables.  We should just run over all surveys
-#        we have matching some criteria and _when_ we lack information 
-#        we should record the state for the survey code in a file.
-for (surveyCode in DHSMaster$Survey.code) {
+for (surveyCode in surveyCodes) {
   outputFile <- file.path(outputPath, paste0(surveyCode, ".rds"))
   if (file.exists(outputFile)) {
     msg <- paste0("skipping '", surveyCode, "' due to file '", 
@@ -59,8 +63,6 @@ stop("This is as far as we need to go.")
 for(SurveyID in translatedSurveysInMaster) {
   SurveyRDataFile <- file.path(output_dir, paste(SurveyID, ".RData"))
   print (SurveyID)
-  
-  SurveyInfo <- subset(DHSMaster, Survey.code == SurveyID)
   load(SurveyRDataFile)
   
   if(SurveyID %in% specialSurveys){

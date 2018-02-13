@@ -1,5 +1,4 @@
 
-DHSMasterFile <- "./dhs/DHSMaster_CC0711.csv"
 PDUCodePath <- "./PDU_FP-Indicators/DHS/Rcode"
 translationTableFile <- "./PDU_FP-Indicators/DHS/TranslationTables/DHS_VariableTranslation_v312.csv"
 outputPath <- "kenya-output"
@@ -42,15 +41,6 @@ ordinarySurveyColumns <- c("v000", "v001", "v002", "v003", "v005", "V007", "v008
 
 # FIXME: The "Unmet" function seems to require more than this so... huh?
 requiredUnmetVar <- c("v213","v225","v312","m10.1","m6.1","v605","b3.01","v008")
-
-# Load in DHS inventory list for standard surveys and individual record is available
-# Only surveys that appear in this file are processed b/c we need survey metadata
-# for processing.
-DHSMaster <- read.csv(DHSMasterFile, header=TRUE, 
-    stringsAsFactors=FALSE, na.strings=c("..", "NA", "", " ")) %>% 
-  dplyr::filter(!is.na(Survey.code), !is.na(Individual.Recode), !is.na(Recode),
-    (Type!="MIS" & Type=="Standard DHS" | Type=="Interim DHS" | Type=="Continuous DHS"), 
-    Survey.code != "br21")
 
 #' This is where survey-specific values for contraceptive type are recoded more
 #' generally.
