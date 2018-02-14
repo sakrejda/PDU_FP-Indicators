@@ -9,16 +9,20 @@ Note: MICS (http://mics.unicef.org/) and DHS (https://www.dhsprogram.com/) micro
 
 ## Original file header: 
 
-Should restore this once the shuffle is done.
+Authorship: original code:
+  Author: United Nations Population Division (Ching Yee Lin, Philipp Ueffing, Stephen Kisambira and Aisha Dasgupta)
+  Project: Making family planning count 
+    [http://www.un.org/en/development/desa/population/projects/making-family-planning-count/index.shtml]
+    [http://www.un.org/en/development/desa/population/theme/family-planning/index.shtml]
 
- R scripts to harmonise family planning variable and estimate family planning indicators by marital status and age from DHS micro-data files
-1. 'DHS_Translate.R' Translates relevant variables across surveys and stores harmonised variable names and codes as R data sets. Based on IPUMS-DHS (https://www.idhsdata.org/idhs/).
-2. 'DHS_Categorization.R' Computes marital status and contraceptive use variables
-3. 'DHS_GenerateUnmet.R' Computes unmet need variable based on DHS code [http://dhsprogram.com/topics/unmet-need.cfm]
-4. 'DHS_output_FP-Indicators.R' Outputs table of family planning indicators by marital status and age
- Author: United Nations Population Division (Ching Yee Lin, Philipp Ueffing, Stephen Kisambira and Aisha Dasgupta)
- Project: Making family planning count 
-[http://www.un.org/en/development/desa/population/projects/making-family-planning-count/index.shtml]
-[http://www.un.org/en/development/desa/population/theme/family-planning/index.shtml]
- DHS micro data sets need to be downloaded from the DHS program website [https://dhsprogram.com/]
+DHS micro data sets need to be downloaded from the DHS program website [https://dhsprogram.com/]
+
+Modifications starting with: 722181436f43288a700be576998c02adaec044f8
+
+  Author: Krzysztof Sakrejda <sakrejda@umass.edu>
+  Project: ...
+
+Manually tested changes at: 38abfb74bf0a3a06f3e114cdf00583a59b270b9c
+Response-level column values produce were equal to the original code.... real summaries and testing still needed.
+
 
